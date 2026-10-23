@@ -1,6 +1,6 @@
-# Practice — TOEFL Learning & Testing Platform
+# Practice — TOEFL Practice App (Simplified)
 
-Practice is a complete TOEFL preparation platform for a class of students and their instructor: landing page, accounts with student/instructor roles, a student dashboard, Reading / Listening / Speaking / Writing practice modules, a shared test engine, classroom management, and progress tracking.
+Practice is a simple, polished TOEFL practice web app. **No accounts, no sign-up, no classroom admin.** Anyone opens the site, chooses Reading, Listening, Speaking, or Writing, completes a session, and sees their results.
 
 ## Run it
 
@@ -11,47 +11,40 @@ python3 -m http.server 8000
 # http://localhost:8000
 ```
 
-## What works in this build
+On Vercel, deploy the project root as a static site; `api/feedback.js` is deployed automatically as a serverless function.
 
-- **Landing page** — monochrome, minimalist, accessible without signing in.
-- **Auth & roles** — sign up / sign in as Student or Instructor. Passwords are stored as salted SHA-256 hashes (Web Crypto). Role checks gate the instructor portal and review pages.
-- **Student dashboard** — real statistics calculated from the student's own attempts (no fabricated scores), assignments, recent activity, instructor feedback, resume for in-progress tests.
-- **Reading** — 2 original passages × 5 questions (main idea, detail, vocabulary-in-context, inference). Timed or resumed, answers autosave, auto-submit at the deadline, instant scoring with explanations.
-- **Listening** — 2 original exercises × 5 questions. Audio is genuinely played using the device's speech-synthesis voice reading the original script (practice mode allows replay; a transcript practice aid is included). If speech is unavailable, the UI says so instead of faking playback.
-- **Speaking** — 2 prompts. Real microphone recording (MediaRecorder), elapsed timer with the task's response limit, playback, re-record, submit for instructor review. Recordings are stored with the attempt.
-- **Writing** — 2 tasks (academic discussion + integrated). Clean editor, live word count, autosaved drafts, timer, submit for review.
-- **Test engine** — shared across skills: attempt creation/resume, saved answers, server-style deadline handling (deadline timestamp + auto-submit), duplicate-submission guard, objective scoring.
-- **Instructor portal** — create classes, join codes (regenerable), roster with per-student stats, create assignments (skill + test + optional due date), review submissions, listen to speaking recordings, read writing, publish rubric scores (0–4) and feedback that students see on their dashboard.
-- **Progress** — per-skill percentages and score-over-time bars computed from submitted attempts, full attempt history. Scores are labelled unofficial (not ETS scores).
-- **Privacy/Terms pages**, empty states, error states (bad login, unknown class code, microphone denied, unsupported speech), keyboard-friendly controls, `prefers-reduced-motion` support.
+## What works
 
-## Data & production backend
+- **Landing page** — monochrome, minimalist. Headline, four skill cards, "How it works", working links throughout.
+- **Reading** — 2 original passages × 5 questions, question navigation, timer with auto-submit, answers saved in the browser, instant objective scoring with explanations and a full answer review.
+- **Listening** — 2 original exercises × 5 questions. Audio really plays: the device's speech-synthesis voice reads the original script (replay allowed in practice), with a transcript practice aid and a clear fallback message if speech is unavailable.
+- **Speaking** — 2 prompts, preparation/response times, real microphone recording (MediaRecorder), playback, re-record, finish. Permission and unsupported-browser errors are handled plainly. Recordings stay in the browser.
+- **Writing** — 2 tasks (academic discussion + integrated), clean editor, live word count, draft kept in the browser, timer, submit to a results page showing the response.
+- **Results page** — skill + set title, raw score / percentage / correct-incorrect counts for objective skills, answer review with explanations, and an **overall AI feedback** section (below). Retry / choose another skill buttons.
+- **Persistence** — in-progress sessions are kept in `localStorage` (`practice_simple_v1`) so a refresh does not lose work. No personal information is collected.
 
-This standalone build persists data in the browser's `localStorage` (key `practice_v1`), which makes the whole product work with zero configuration — ideal for demos and single-device classrooms.
+## AI: overall feedback only
 
-For a multi-user production deployment, the schema and configuration are provided:
+AI is used **only** for overall feedback after a session — never for navigation, rendering, or grading. Objective scores are computed by the app itself.
 
-- `supabase/schema.sql` — PostgreSQL schema for Supabase (or any Postgres): profiles, classes, memberships, tests, questions, assignments, attempts, answers, recordings, writing submissions, feedback, with foreign keys, indexes and uniqueness constraints. Enable Row Level Security policies modelled on the role rules in the app before going live.
-- `.env.example` — every environment variable the production integration needs (Supabase URL/keys, optional AI writing/speech evaluation providers). The app is designed so the `DB` data-layer object in `index.html` can be swapped for Supabase client calls with the same shape.
-- **Never commit real secrets.** `.env` is for local use only; set production values in Vercel Project Settings.
-
-### Optional AI services
-
-Speaking transcription/evaluation and writing AI feedback are intentionally **not faked**. If you configure a provider (see `.env.example`), wire it behind a server-side endpoint and display its output labelled "AI-generated feedback". Until then, Speaking and Writing are reviewed by the instructor — the app states this clearly in the UI.
+- Endpoint: `api/feedback.js` (server-side; the API key never reaches the browser).
+- Configure in Vercel Project Settings (see `.env.example`):
+  - `AI_FEEDBACK_API_KEY` — required to enable AI feedback.
+  - `AI_FEEDBACK_API_URL` — optional, OpenAI-compatible chat completions URL (default: OpenAI).
+  - `AI_FEEDBACK_MODEL` — optional (default: `gpt-4o-mini`).
+- Reading/Listening: the endpoint receives the app's computed score plus the topics of missed questions, and is instructed not to change or invent scores.
+- Writing: the endpoint receives the prompt and the submitted response and returns a summary, strengths, areas to improve, and next steps — labelled AI-generated and unofficial in the UI.
+- Speaking: AI audio evaluation is **not** configured in this build, so the results page says so plainly and never fabricates an analysis of a recording.
+- **No key configured?** The endpoint returns `{ available: false }` and the results page shows a clear fallback message. The app works fully without AI.
 
 ## Tests
 
 ```bash
 node tests/scoring.test.mjs   # objective scoring + seed-content integrity
-node tests/smoke.test.mjs     # static checks: routes, modules, no placeholder buttons
+node tests/smoke.test.mjs     # no-auth guarantee, module wiring, AI fallback, endpoint hygiene
+node --check api/feedback.js  # endpoint syntax (or import it in your runtime)
 ```
-
-Browser journeys verified manually against the checklist in the master prompt (auth, join class, all four skills end-to-end, instructor feedback reaching the student, cross-student access blocked by the review-page role/membership checks).
-
-## Deploy (Vercel)
-
-The app is a static site: import the repo in Vercel (framework preset: Other / no build command, output directory: project root) or deploy `index.html` directly. The live deployment for this repo is linked from the repository's Vercel project `gromond-ai`.
 
 ## Content
 
-All passages, conversations, lectures, prompts and questions are original and written for Practice. No commercial test content is reproduced.
+All passages, conversations, lectures, prompts and questions are original, written for Practice. No commercial TOEFL content is reproduced, and no score in Practice is an official ETS score.
